@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command Center — TRINETRA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<!-- Leaflet MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.Default.css"/>
+<style>
+  :root{
+    --bg-950:#070A0E; --bg-900:#0A0E14; --bg-800:#101720; --bg-700:#18222E;
+    --line:#22303E; --line-soft:#19222C;
+    --text-hi:#F1F5F9; --text-mid:#94A3B8; --text-low:#64748B;
+    --alert:#FF6B35; --alert-dim:#421D12;
+    --live:#10B981; --live-dim:#0D3426;
+    --cyan:#00E5FF; --cyan-dim:#003B46;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html, body{
+    background:var(--bg-950); color:var(--text-hi);
+    font-family:'Inter',sans-serif; line-height:1.45;
+    min-height:100vh; overflow-x:hidden;
+    scrollbar-width:none; -ms-overflow-style:none;
+  }
+  html::-webkit-scrollbar, body::-webkit-scrollbar{ display:none; }
+  a{ color:inherit; text-decoration:none; }
+  .mono{ font-family:'JetBrains Mono',monospace; }
+  .disp{ font-family:'Space Grotesk',sans-serif; }
+
+  /* App Shell */
+  .app-shell{ display:flex; min-height:100vh; }
+  .sidebar{
+    width:230px; flex-shrink:0; background:var(--bg-900); border-right:1px solid var(--line);
+    padding:18px 14px; position:sticky; top:0; height:100vh; overflow-y:auto;
+    display:flex; flex-direction:column;
+  }
+  .wordmark{
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:1.25rem;
+    letter-spacing:0.04em; color:#fff; display:block;
+    padding:6px 10px 22px;
+  }
+  .wordmark span{ color:var(--alert); }
+
+  .side-nav{ display:flex; flex-direction:column; gap:3px; flex:1; }
+  .side-link{
+    display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:7px;
+    font-size:0.84rem; color:var(--text-mid); border-left:2px solid transparent; cursor:pointer;
+    transition:0.15s;
+  }
+  .side-link svg{ width:16px; height:16px; flex-shrink:0; }
+  .side-link:hover{ background:var(--bg-800); color:var(--text-hi); }
+  .side-link.active{ background:var(--bg-800); color:var(--text-hi); border-left-color:var(--alert); font-weight:600; }
+
+  .main-col{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:14px 24px; border-bottom:1px solid var(--line);
+    background:rgba(10,14,20,0.92); backdrop-filter:blur(8px);
+    position:sticky; top:0; z-index:30;
+  }
+  .topbar-title{ font-size:1.15rem; font-weight:700; }
+  .topbar-sub{ font-size:0.75rem; color:var(--text-mid); }
+  .topbar-right{ display:flex; align-items:center; gap:12px; }
+
+  .live-pill{
+    display:flex; align-items:center; gap:7px; font-size:0.75rem; color:var(--text-hi);
+    border:1px solid var(--line); border-radius:999px; padding:5px 12px; background:var(--bg-800);
+  }
+  .pulse-dot{ width:7px; height:7px; border-radius:50%; background:var(--live); box-shadow:0 0 0 0 rgba(16,185,129,0.7); animation:pulse 2s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(16,185,129,0.7);} 70%{box-shadow:0 0 0 7px rgba(16,185,129,0);} 100%{box-shadow:0 0 0 0 rgba(16,185,129,0);}}
+
+  /* Dashboard Content */
+  .dash-content{ padding:20px 24px 60px; display:flex; flex-direction:column; gap:20px; }
+  .tab-pane.tab-hidden{ display:none; }
+
+  /* Top 6 Stat Cards */
+  .metrics-grid{ display:grid; grid-template-columns:repeat(6, 1fr); gap:14px; }
+  @media (max-width:1400px){ .metrics-grid{ grid-template-columns:repeat(3, 1fr); } }
+  @media (max-width:900px){ .metrics-grid{ grid-template-columns:repeat(2, 1fr); } }
+
+  .metric-card{
+    background:var(--bg-900); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; display:flex; flex-direction:column; gap:6px; position:relative;
+  }
+  .metric-header{ display:flex; justify-content:space-between; align-items:center; }
+  .metric-label{ font-size:0.72rem; color:var(--text-mid); text-transform:uppercase; letter-spacing:0.04em; font-weight:600; }
+  .metric-value{ font-size:1.75rem; font-weight:700; color:var(--text-hi); line-height:1.2; }
+  .metric-footer{ display:flex; align-items:center; gap:6px; font-size:0.73rem; color:var(--live); }
+
+  /* Stream Container */
+  .stream-container{
+    background:var(--bg-900); border:1px solid var(--line); border-radius:12px;
+    padding:18px; display:flex; flex-direction:column; gap:16px;
+  }
+  .stream-header{
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
+    border-bottom:1px solid var(--line); padding-bottom:14px;
+  }
+  .stream-title-group .kicker{
+    font-size:0.68rem; color:var(--alert); font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:2px;
+  }
+  .stream-title-group h2{ font-size:1.15rem; font-weight:700; color:var(--text-hi); }
+
+  .stream-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .badge-tag{
+    background:var(--bg-800); border:1px solid var(--line); border-radius:6px;
+    padding:5px 10px; font-size:0.75rem; font-weight:600; color:var(--cyan);
+  }
+  .btn-action{
+    padding:6px 14px; border-radius:6px; font-size:0.78rem; font-weight:600;
+    cursor:pointer; border:1px solid var(--line); background:var(--bg-800); color:var(--text-hi);
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  .btn-action:hover{ border-color:var(--alert); }
+
+  /* Video Stage */
+  .video-stage{
+    position:relative; width:100%; height:520px; background:#000;
+    border-radius:8px; overflow:hidden; border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .video-stage img{ width:100%; height:100%; object-fit:contain; }
+
+  .overlay-tl{
+    position:absolute; top:14px; left:16px; display:flex; flex-direction:column; gap:4px;
+    background:rgba(7,10,14,0.75); backdrop-filter:blur(6px); padding:8px 12px;
+    border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-size:0.72rem;
+  }
+  .overlay-tr{
+    position:absolute; top:14px; right:16px; display:flex; align-items:center; gap:8px;
+    background:rgba(7,10,14,0.75); backdrop-filter:blur(6px); padding:6px 12px;
+    border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-size:0.74rem;
+  }
+  .overlay-br{
+    position:absolute; bottom:14px; right:16px;
+    background:rgba(7,10,14,0.75); backdrop-filter:blur(6px); padding:6px 12px;
+    border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-size:0.75rem;
+    display:flex; align-items:center; gap:6px;
+  }
+
+  .telemetry-strip{
+    display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;
+    background:var(--bg-800); border:1px solid var(--line); border-radius:8px; padding:12px 16px;
+  }
+  @media (max-width:900px){ .telemetry-strip{ grid-template-columns:repeat(2, 1fr); } }
+  .telemetry-item{ display:flex; flex-direction:column; gap:3px; }
+  .telemetry-item .label{ font-size:0.68rem; color:var(--text-mid); text-transform:uppercase; }
+  .telemetry-item .val{ font-size:0.92rem; font-weight:600; color:var(--text-hi); }
+
+  /* Table styling */
+  .gov-table{ width:100%; border-collapse:collapse; text-align:left; font-size:0.85rem; }
+  .gov-table th{ padding:12px 16px; border-bottom:1px solid var(--line); background:var(--bg-800); color:var(--text-mid); font-weight:600; }
+  .gov-table td{ padding:12px 16px; border-bottom:1px solid var(--line-soft); }
+
+  .badge-sev{ padding:3px 8px; border-radius:4px; font-size:0.75rem; font-weight:600; display:inline-block; }
+  .badge-severe{ background:rgba(239,68,68,0.2); color:#EF4444; border:1px solid rgba(239,68,68,0.4); }
+  .badge-moderate{ background:rgba(255,107,53,0.2); color:var(--alert); border:1px solid rgba(255,107,53,0.4); }
+
+  /* Status Badges */
+  .btn-status-toggle{
+    display:inline-flex; align-items:center; gap:6px; padding:4px 10px;
+    border-radius:6px; font-size:0.75rem; font-weight:600; cursor:pointer;
+    border:1px solid transparent; transition:0.2s; user-select:none; font-family:'Inter', sans-serif;
+  }
+  .btn-status-toggle.status-fixed{
+    background:rgba(16,185,129,0.18); color:var(--live); border-color:rgba(16,185,129,0.45);
+  }
+  .btn-status-toggle.status-fixed:hover{ background:rgba(16,185,129,0.28); }
+  
+  .btn-status-toggle.status-unfixed{
+    background:rgba(239,68,68,0.18); color:#EF4444; border-color:rgba(239,68,68,0.45);
+  }
+  .btn-status-toggle.status-unfixed:hover{ background:rgba(239,68,68,0.28); }
+
+  /* Notification Alerts UI */
+  .alert-container{
+    position:fixed; top:75px; right:24px; z-index:9999;
+    display:flex; flex-direction:column; gap:10px; pointer-events:none;
+  }
+  .alert-toast{
+    pointer-events:auto; background:rgba(16,23,32,0.96); backdrop-filter:blur(8px);
+    border:1px solid var(--alert); border-left:4px solid var(--alert);
+    border-radius:6px; padding:12px 16px; box-shadow:0 8px 24px rgba(0,0,0,0.5);
+    display:flex; align-items:center; gap:12px; color:var(--text-hi); font-size:0.82rem;
+    animation:slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); min-width:310px;
+  }
+  .alert-toast.fade-out{ animation:slideOut 0.3s forwards; }
+  @keyframes slideIn{ from{ transform:translateX(110%); opacity:0; } to{ transform:translateX(0); opacity:1; } }
+  @keyframes slideOut{ from{ transform:translateX(0); opacity:1; } to{ transform:translateX(110%); opacity:0; } }
+
+  /* Map Container & Live GPS Controls */
+  .map-box{ height:620px; border-radius:10px; overflow:hidden; border:1px solid var(--line); position:relative; }
+  #map{ width:100%; height:100%; z-index:1; }
+  .leaflet-layer, .leaflet-control-zoom-in, .leaflet-control-zoom-out, .leaflet-control-attribution{
+    filter: invert(100%) hue-rotate(180deg) brightness(90%) contrast(90%);
+  }
+
+  .gps-controls-overlay{
+    position:absolute; top:16px; right:16px; z-index:1000;
+    background:rgba(10,14,20,0.88); backdrop-filter:blur(8px);
+    border:1px solid var(--line); border-radius:8px; padding:12px;
+    display:flex; flex-direction:column; gap:8px; width:220px;
+  }
+  .gps-controls-overlay button{
+    width:100%; padding:8px 10px; background:var(--bg-800); color:var(--text-hi);
+    border:1px solid var(--line); border-radius:5px; font-size:0.78rem; font-weight:600;
+    cursor:pointer; text-align:left; display:flex; align-items:center; justify-content:space-between;
+    transition: 0.2s;
+  }
+  .gps-controls-overlay button:hover{ border-color:var(--cyan); }
+  .gps-controls-overlay button.active{ border-color:var(--alert); background:var(--bg-700); }
+</style>
+</head>
+<body>
+
+<!-- Alert Notification Stack -->
+<div id="alert-container" class="alert-container"></div>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="wordmark">TRI<span>NETRA</span></div>
+    <nav class="side-nav">
+      <a class="side-link active" onclick="switchTab('overview')" id="nav-overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+        Overview
+      </a>
+      <a class="side-link" onclick="switchTab('potholes')" id="nav-potholes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>
+        Potholes Folder
+      </a>
+      <a class="side-link" onclick="switchTab('garbage')" id="nav-garbage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        Garbage Folder
+      </a>
+      <a class="side-link" onclick="switchTab('map')" id="nav-map">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/></svg>
+        Live Map
+      </a>
+      <a class="side-link" onclick="switchTab('traffic')" id="nav-traffic">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        Traffic Analytics
+      </a>
+      <a class="side-link" onclick="switchTab('fleet')" id="nav-fleet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 16h1m-8 0h1M4 6h16v10H4z"/><path d="M4 16l-2 3h20l-2-3M4 10h16"/></svg>
+        Fleet Status
+      </a>
+    </nav>
+  </aside>
+
+  <div class="main-col">
+    <header class="topbar">
+      <div>
+        <div class="topbar-title">Command Center</div>
+        <div class="topbar-sub">TRINETRA — City's Third Eye</div>
+      </div>
+      <div class="topbar-right">
+        <div class="live-pill"><span class="pulse-dot"></span> Live Telemetry</div>
+      </div>
+    </header>
+
+    <main class="dash-content">
+      <!-- OVERVIEW TAB -->
+      <section id="tab-overview" class="tab-pane">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-label">Active Bus Fleet</span>
+              <span class="pulse-dot"></span>
+            </div>
+            <div class="metric-value mono">5 <span style="font-size:1.1rem; color:var(--text-low); font-weight:500;">/ 5</span></div>
+            <div class="metric-footer">100% On-Route Sync</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-label">KM Covered Today</span>
+              <span class="mono" style="font-size:0.7rem; color:var(--cyan);">GEO-TRACK</span>
+            </div>
+            <div class="metric-value mono" style="color:var(--cyan);">18,429.4 <span style="font-size:0.9rem; font-weight:500;">km</span></div>
+            <div class="metric-footer" style="color:var(--text-mid);">+12.3 km/min Total Fleet</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-label">4-Cam Vision Camera</span>
+              <span class="mono" style="font-size:0.7rem; color:var(--live);">DIAGNOSTIC</span>
+            </div>
+            <div class="metric-value mono" style="color:var(--live);">100%</div>
+            <div class="metric-footer">20 / 20 Sensor Pods Online</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-label">Solutions Dispatched</span>
+              <span class="mono" style="font-size:0.7rem; color:var(--alert);">AUTO-RESOLVE</span>
+            </div>
+            <div class="metric-value mono" style="color:var(--alert);">100% <span style="font-size:0.9rem; font-weight:500;">Active</span></div>
+            <div class="metric-footer">Auto-Civic Action Deployed</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-label">Potholes Detected</span>
+              <span class="mono" style="font-size:0.7rem; color:var(--alert);">AI VISION</span>
+            </div>
+            <div class="metric-value mono" style="color:var(--alert);" id="potholes-count">42</div>
+            <div class="metric-footer" style="color:var(--alert);">+3 in last 10 mins</div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-label">Garbage Bins Detected</span>
+              <span class="mono" style="font-size:0.7rem; color:var(--cyan);">AI VISION</span>
+            </div>
+            <div class="metric-value mono" style="color:var(--cyan);" id="garbage-count">19</div>
+            <div class="metric-footer" style="color:var(--text-mid);">Overflow monitored</div>
+          </div>
+        </div>
+
+        <div class="stream-container">
+          <div class="stream-header">
+            <div class="stream-title-group">
+              <div class="kicker">Live Sensor Stream • Multi-Angle Dynamic Detection</div>
+              <h2 class="disp">Multi-Angle Edge Camera &amp; Photogrammetric Detection</h2>
+            </div>
+            <div class="stream-actions">
+              <span class="badge-tag mono">BUS #AP 123</span>
+              <button class="btn-action" onclick="switchTab('map')" style="border-color:var(--alert); color:var(--alert);">⚡ Live Map Tracking</button>
+              <button class="btn-action" onclick="switchTab('potholes')">View Pothole Analysis</button>
+              <button class="btn-action" onclick="switchTab('garbage')">View Garbage Analysis</button>
+              <a href="/download/csv" class="btn-action">Export Evidence CSV</a>
+            </div>
+          </div>
+
+          <div class="video-stage">
+            <div class="overlay-tl mono">
+              <div><strong style="color:var(--alert);">ACTIVE SENSING UNIT:</strong> BUS-AP-123</div>
+              <div style="color:var(--text-mid);">VISION PIPELINE: YOLOv8-CIVIC + GPS SYNC</div>
+            </div>
+            <div class="overlay-tr mono">
+              <span class="pulse-dot"></span>
+              <span>LIVE EDGE CV: 38.0 FPS</span>
+            </div>
+
+            <img src="/video_feed" alt="Live Camera Feed Stream" onerror="this.src=''; this.alt='Awaiting video stream connection...';">
+
+            <div class="overlay-br mono">
+              <span style="color:var(--cyan);" id="gps-coords">GPS: Acquiring Live Fix...</span>
+            </div>
+          </div>
+
+          <div class="telemetry-strip mono">
+            <div class="telemetry-item">
+              <span class="label">Sensor Array Mode</span>
+              <span class="val">4-CAM QUAD OPTICAL</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="label">Inference Engine</span>
+              <span class="val" style="color:var(--live);">ONNX RUNTIME • TENSORRT</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="label">Target Classes</span>
+              <span class="val">POTHOLE, GARBAGE, CONGESTION</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="label">Dispatch Pipeline</span>
+              <span class="val" style="color:var(--alert);">100% SYNCHRONIZED</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- POTHOLES FOLDER TAB -->
+      <section id="tab-potholes" class="tab-pane tab-hidden">
+        <div style="background:var(--bg-900); border:1px solid var(--line); border-radius:10px; overflow:hidden;">
+          <div style="padding:16px 20px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h3 class="disp" style="font-size:1.1rem; color:var(--text-hi);">Pothole Detections Directory</h3>
+              <p style="color:var(--text-mid); font-size:0.8rem;">Logged roadway anomalies, severity status, and telemetry</p>
+            </div>
+            <button class="btn-action" onclick="fetchPotholesTable()">Refresh Data</button>
+          </div>
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Bus Unit</th>
+                <th>Severity</th>
+                <th>Confidence</th>
+                <th>GPS Location</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="potholes-table-body">
+              <tr>
+                <td colspan="6" style="text-align:center; padding:24px; color:var(--text-mid);" class="mono">Loading detections data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- GARBAGE FOLDER TAB -->
+      <section id="tab-garbage" class="tab-pane tab-hidden">
+        <div style="background:var(--bg-900); border:1px solid var(--line); border-radius:10px; overflow:hidden;">
+          <div style="padding:16px 20px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h3 class="disp" style="font-size:1.1rem; color:var(--text-hi);">Garbage &amp; Overflow Detections Directory</h3>
+              <p style="color:var(--text-mid); font-size:0.8rem;">Logged municipal waste hotspots, fill levels, and status</p>
+            </div>
+            <button class="btn-action" onclick="fetchGarbageTable()">Refresh Data</button>
+          </div>
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Bus Unit</th>
+                <th>Fill Level</th>
+                <th>Confidence</th>
+                <th>GPS Location</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="garbage-table-body">
+              <tr>
+                <td colspan="6" style="text-align:center; padding:24px; color:var(--text-mid);" class="mono">Loading garbage detections data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- MAP TAB -->
+      <section id="tab-map" class="tab-pane tab-hidden">
+        <div class="map-box">
+          <div class="gps-controls-overlay mono">
+            <div style="font-weight:700; font-size:0.75rem; color:var(--cyan); margin-bottom:2px;">LIVE GPS OPTIONS</div>
+            <button id="btn-recenter" onclick="centerOnHardware()">📍 Center Hardware GPS</button>
+            <button id="btn-recenter-bus" onclick="centerOnLatestBus()">🚌 Center Active Bus</button>
+            <button id="btn-toggle-follow" class="active" onclick="toggleAutoFollow()">🔄 Auto-Follow: ON</button>
+            <button id="btn-high-acc" class="active" onclick="toggleHighAccuracy()">🎯 High Accuracy: ON</button>
+            <div style="font-size:0.68rem; color:var(--text-mid); margin-top:4px;" id="gps-accuracy-readout">Accuracy: Pending...</div>
+          </div>
+          <div id="map"></div>
+        </div>
+      </section>
+
+      <!-- TRAFFIC ANALYTICS TAB -->
+      <section id="tab-traffic" class="tab-pane tab-hidden">
+        <div style="display:flex; flex-direction:column; gap:20px;">
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">Avg Fleet Speed</span>
+                <span class="pulse-dot"></span>
+              </div>
+              <div class="metric-value mono" style="color:var(--live);">24.8 <span style="font-size:0.9rem;">km/h</span></div>
+              <div class="metric-footer">+3.2 km/h vs Peak Average</div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">Active Bottlenecks</span>
+                <span class="mono" style="font-size:0.7rem; color:var(--alert);">ALERT</span>
+              </div>
+              <div class="metric-value mono" style="color:var(--alert);">4 <span style="font-size:0.9rem;">Corridors</span></div>
+              <div class="metric-footer" style="color:var(--alert);">Heavy Delay at Silk Board</div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-header">
+                <span class="metric-label">Network Flow Index</span>
+                <span class="mono" style="font-size:0.7rem; color:var(--cyan);">STABLE</span>
+              </div>
+              <div class="metric-value mono" style="color:var(--cyan);">78<span style="font-size:0.9rem;">/100</span></div>
+              <div class="metric-footer" style="color:var(--text-mid);">Optimal Signal Timing</div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
+            <div style="background:var(--bg-900); border:1px solid var(--line); border-radius:10px; padding:20px; display:flex; flex-direction:column; gap:20px;">
+              <div>
+                <h3 class="disp" style="font-size:1.1rem; color:var(--text-hi); margin-bottom:4px;">Key Corridor Speed Profiling</h3>
+                <p style="color:var(--text-mid); font-size:0.8rem;">Real-time speed telemetry aggregated across active BMTC fleet nodes</p>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:14px;" class="mono">
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:6px;">
+                    <span>Outer Ring Road (Silk Board ➔ Marathahalli)</span>
+                    <span style="color:var(--alert);">11 km/h (Heavy Jam)</span>
+                  </div>
+                  <div style="width:100%; height:8px; background:var(--bg-800); border-radius:4px; overflow:hidden;">
+                    <div style="width:25%; height:100%; background:var(--alert);"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:6px;">
+                    <span>Hosur Road (Electronic City Phase 1)</span>
+                    <span style="color:var(--cyan);">34 km/h (Moderate)</span>
+                  </div>
+                  <div style="width:100%; height:8px; background:var(--bg-800); border-radius:4px; overflow:hidden;">
+                    <div style="width:65%; height:100%; background:var(--cyan);"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:6px;">
+                    <span>Old Airport Road (DOM LUR ➔ HAL)</span>
+                    <span style="color:var(--live);">42 km/h (Smooth)</span>
+                  </div>
+                  <div style="width:100%; height:8px; background:var(--bg-800); border-radius:4px; overflow:hidden;">
+                    <div style="width:85%; height:100%; background:var(--live);"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:6px;">
+                    <span>Bannerghatta Main Road (Dairy Circle)</span>
+                    <span style="color:var(--alert);">16 km/h (Congested)</span>
+                  </div>
+                  <div style="width:100%; height:8px; background:var(--bg-800); border-radius:4px; overflow:hidden;">
+                    <div style="width:35%; height:100%; background:var(--alert);"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="border-top:1px solid var(--line); padding-top:16px;">
+                <h4 class="disp" style="font-size:0.95rem; margin-bottom:12px; color:var(--text-hi);">Fleet Speed Profile (Past 6 Hours)</h4>
+                <div style="width:100%; height:140px; position:relative;">
+                  <svg viewBox="0 0 500 120" style="width:100%; height:100%; overflow:visible;">
+                    <line x1="0" y1="30" x2="500" y2="30" stroke="var(--line-soft)" stroke-dasharray="4"/>
+                    <line x1="0" y1="70" x2="500" y2="70" stroke="var(--line-soft)" stroke-dasharray="4"/>
+                    <polygon points="0,100 0,60 80,40 160,85 240,30 320,70 400,20 500,50 500,100" fill="rgba(0,229,255,0.08)"/>
+                    <polyline points="0,60 80,40 160,85 240,30 320,70 400,20 500,50" fill="none" stroke="var(--cyan)" stroke-width="2.5"/>
+                    <circle cx="500" cy="50" r="4" fill="var(--cyan)"/>
+                  </svg>
+                  <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-mid);" class="mono">
+                    <span>06:00 IST</span>
+                    <span>08:00 IST</span>
+                    <span>10:00 IST</span>
+                    <span>12:00 IST</span>
+                    <span>14:00 IST (Now)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="background:var(--bg-900); border:1px solid var(--line); border-radius:10px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+              <h3 class="disp" style="font-size:1.1rem; color:var(--text-hi);">Live Traffic Incidents</h3>
+              <div style="display:flex; flex-direction:column; gap:10px;" class="mono">
+                <div style="background:var(--bg-800); border:1px solid var(--line); border-left:3px solid var(--alert); padding:10px 12px; border-radius:6px;">
+                  <div style="font-size:0.78rem; font-weight:700; color:var(--alert);">CONGESTION DETECTED</div>
+                  <div style="font-size:0.75rem; color:var(--text-hi); margin-top:2px;">Silk Board Flyover Ramp</div>
+                  <div style="font-size:0.68rem; color:var(--text-mid); margin-top:4px;">Delay: ~18 mins • Speed: 9 km/h</div>
+                </div>
+
+                <div style="background:var(--bg-800); border:1px solid var(--line); border-left:3px solid var(--alert); padding:10px 12px; border-radius:6px;">
+                  <div style="font-size:0.78rem; font-weight:700; color:var(--alert);">BUS BAY BLOCKAGE</div>
+                  <div style="font-size:0.75rem; color:var(--text-hi); margin-top:2px;">Tin Factory Junction</div>
+                  <div style="font-size:0.68rem; color:var(--text-mid); margin-top:4px;">Illegal Parking Flagged by Vision Pod</div>
+                </div>
+
+                <div style="background:var(--bg-800); border:1px solid var(--line); border-left:3px solid var(--live); padding:10px 12px; border-radius:6px;">
+                  <div style="font-size:0.78rem; font-weight:700; color:var(--live);">CORRIDOR CLEARED</div>
+                  <div style="font-size:0.75rem; color:var(--text-hi); margin-top:2px;">Hebbal Flyover Inbound</div>
+                  <div style="font-size:0.68rem; color:var(--text-mid); margin-top:4px;">Speed Recovered: 38 km/h</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FLEET TELEMETRY TAB -->
+      <section id="tab-fleet" class="tab-pane tab-hidden">
+        <div style="background:var(--bg-900); border:1px solid var(--line); border-radius:10px; overflow:hidden;">
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th>Bus ID</th>
+                <th>Status</th>
+                <th>Route</th>
+                <th>Coverage</th>
+                <th>Sensor Pods</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="mono">KA-01-F-4021</td><td><span style="color:var(--live);">● Online</span></td><td>Route 335-E</td><td class="mono">3,812 km</td><td class="mono">4 / 4 Active</td></tr>
+              <tr><td class="mono">KA-01-F-4022</td><td><span style="color:var(--live);">● Online</span></td><td>Route 500-D</td><td class="mono">4,120 km</td><td class="mono">4 / 4 Active</td></tr>
+              <tr><td class="mono">KA-01-F-4023</td><td><span style="color:var(--live);">● Online</span></td><td>Route 201-R</td><td class="mono">3,490 km</td><td class="mono">4 / 4 Active</td></tr>
+              <tr><td class="mono">KA-01-F-4024</td><td><span style="color:var(--live);">● Online</span></td><td>Route 171</td><td class="mono">3,601 km</td><td class="mono">4 / 4 Active</td></tr>
+              <tr><td class="mono">KA-01-F-4025</td><td><span style="color:var(--live);">● Online</span></td><td>Route G-4</td><td class="mono">3,406 km</td><td class="mono">4 / 4 Active</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
+
+<script>
+  let map = null;
+  let hazardMarkers = [];
+  let liveBusMarker = null;
+  let deviceGpsMarker = null;
+  let accuracyCircle = null;
+
+  // GPS State Management Flags
+  let autoFollow = true;
+  let highAccuracy = true;
+  let watchId = null;
+  let currentLat = null;
+  let currentLng = null;
+
+  // Alert & Polling Cache
+  let processedDetections = new Set();
+  let localFixedMap = {};
+  let localClearedMap = {};
+
+  function triggerPotholeAlert(busId, confidence) {
+    const container = document.getElementById('alert-container');
+    if (!container) return;
+
+    const alertToast = document.createElement('div');
+    alertToast.className = 'alert-toast mono';
+    alertToast.innerHTML = `
+      <span style="font-size:1.1rem; line-height:1;">⚠️</span>
+      <div>
+        <div style="font-weight:700; color:var(--alert); letter-spacing:0.04em;">POTHOLE DETECTED</div>
+        <div style="font-size:0.75rem; color:var(--text-hi); margin-top:2px;">
+          Bus ID: <b style="color:var(--cyan);">${busId || 'AP 123'}</b> &nbsp;|&nbsp; Confidence: <b style="color:var(--live);">${confidence || 'N/A'}</b>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(alertToast);
+
+    setTimeout(() => {
+      alertToast.classList.add('fade-out');
+      setTimeout(() => alertToast.remove(), 300);
+    }, 4500);
+  }
+
+  function getSeverityColor(severity) {
+    const s = (severity || "").toUpperCase();
+    if (s === "CRITICAL" || s === "SEVERE" || s === "OVERFLOW") return "#ff3333";
+    if (s === "MODERATE" || s === "HIGH") return "#ffcc00";
+    return "#33cc33";
+  }
+
+  function getBusIcon() {
+    return L.divIcon({
+      className: 'live-bus-pin',
+      html: `
+        <div style="position:relative; width:26px; height:26px; display:flex; align-items:center; justify-content:center;">
+          <div style="position:absolute; width:26px; height:26px; border-radius:50%; background:#00E5FF; opacity:0.4; animation:pulse 1.5s infinite;"></div>
+          <div style="width:14px; height:14px; border-radius:50%; background:#00E5FF; border:2.5px solid #ffffff; box-shadow:0 0 10px #00E5FF;"></div>
+        </div>
+      `,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+  }
+
+  async function updateLiveMap(mapInstance) {
+    if (!mapInstance) return;
+
+    try {
+      const response = await fetch('/api/logs');
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const logs = data.logs || [];
+
+      hazardMarkers.forEach(marker => mapInstance.removeLayer(marker));
+      hazardMarkers = [];
+
+      let latestCoord = null;
+
+      logs.forEach(item => {
+        const lat = parseFloat(item.Latitude);
+        const lon = parseFloat(item.Longitude);
+
+        if (!isNaN(lat) && !isNaN(lon)) {
+          latestCoord = [lat, lon];
+          const color = getSeverityColor(item.Severity);
+
+          const marker = L.circleMarker([lat, lon], {
+            radius: 8,
+            fillColor: color,
+            color: "#ffffff",
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.85
+          });
+
+          const popupContent = `
+            <div style="font-family: sans-serif; font-size: 13px; color: #111;">
+              <b>Bus:</b> AP 123<br>
+              <b>Hazard:</b> ${item.Hazard_Type}<br>
+              <b>Severity:</b> <span style="color:${color}; font-weight:bold;">${item.Severity}</span><br>
+              <b>Confidence:</b> ${item.Confidence}<br>
+              <b>Time:</b> ${item.Timestamp}
+            </div>
+          `;
+
+          marker.bindPopup(popupContent);
+          marker.addTo(mapInstance);
+          hazardMarkers.push(marker);
+        }
+      });
+
+      if (latestCoord) {
+        if (!liveBusMarker) {
+          liveBusMarker = L.marker(latestCoord, { icon: getBusIcon(), zIndexOffset: 1000 }).addTo(mapInstance);
+          liveBusMarker.bindPopup(`
+            <div style="font-family: sans-serif; font-size: 13px; color: #111;">
+              <b style="color:#00838F;">BUS AP 123 (Active Unit)</b><br>
+              Live Telemetry Tracking Active
+            </div>
+          `);
+        } else {
+          liveBusMarker.setLatLng(latestCoord);
+        }
+
+        const gpsLabel = document.getElementById('gps-coords');
+        if (gpsLabel && !currentLat) {
+          gpsLabel.textContent = `GPS: ${latestCoord[0].toFixed(4)}° N, ${latestCoord[1].toFixed(4)}° E`;
+        }
+
+        if (autoFollow && !currentLat) {
+          mapInstance.setView(latestCoord, mapInstance.getZoom() || 16);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update map markers:", err);
+    }
+  }
+
+  function startHardwareGPS() {
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          currentLat = pos.coords.latitude;
+          currentLng = pos.coords.longitude;
+          const accuracy = pos.coords.accuracy;
+
+          const gpsLabel = document.getElementById('gps-coords');
+          if (gpsLabel) {
+            gpsLabel.textContent = `GPS: ${currentLat.toFixed(4)}° N, ${currentLng.toFixed(4)}° E`;
+          }
+
+          const accReadout = document.getElementById('gps-accuracy-readout');
+          if (accReadout) {
+            accReadout.textContent = `Accuracy: ±${Math.round(accuracy)}m`;
+          }
+
+          fetch('/api/update_gps', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: currentLat, lon: currentLng })
+          }).catch(err => console.warn('GPS transmission error:', err));
+
+          if (map) {
+            if (!deviceGpsMarker) {
+              const pulseIcon = L.divIcon({
+                className: 'custom-hardware-pin',
+                html: `<div style="width:14px; height:14px; background:#10B981; border:2.5px solid #fff; border-radius:50%; box-shadow:0 0 10px #10B981;"></div>`,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
+              });
+              deviceGpsMarker = L.marker([currentLat, currentLng], { icon: pulseIcon }).addTo(map);
+              deviceGpsMarker.bindPopup("<b>Hardware GPS Sensor</b><br>Live Device Tracking Signal");
+            } else {
+              deviceGpsMarker.setLatLng([currentLat, currentLng]);
+            }
+
+            if (!accuracyCircle) {
+              accuracyCircle = L.circle([currentLat, currentLng], {
+                radius: accuracy,
+                color: '#10B981',
+                fillColor: '#10B981',
+                fillOpacity: 0.12,
+                weight: 1
+              }).addTo(map);
+            } else {
+              accuracyCircle.setLatLng([currentLat, currentLng]);
+              accuracyCircle.setRadius(accuracy);
+            }
+
+            if (autoFollow) {
+              map.setView([currentLat, currentLng], map.getZoom() || 16);
+            }
+          }
+        },
+        (err) => console.warn('Geolocation sensor error:', err.message),
+        { enableHighAccuracy: highAccuracy, maximumAge: 2000, timeout: 5000 }
+      );
+    }
+  }
+
+  function centerOnHardware() {
+    if (currentLat && currentLng && map) {
+      map.setView([currentLat, currentLng], 16);
+    }
+  }
+
+  function centerOnLatestBus() {
+    if (liveBusMarker && map) {
+      map.setView(liveBusMarker.getLatLng(), 16);
+    }
+  }
+
+  function toggleAutoFollow() {
+    autoFollow = !autoFollow;
+    const btn = document.getElementById('btn-toggle-follow');
+    if (autoFollow) {
+      btn.classList.add('active');
+      btn.textContent = '🔄 Auto-Follow: ON';
+      if (currentLat && currentLng && map) map.setView([currentLat, currentLng], map.getZoom() || 16);
+    } else {
+      btn.classList.remove('active');
+      btn.textContent = '⏸ Auto-Follow: OFF';
+    }
+  }
+
+  function toggleHighAccuracy() {
+    highAccuracy = !highAccuracy;
+    const btn = document.getElementById('btn-high-acc');
+    if (highAccuracy) {
+      btn.classList.add('active');
+      btn.textContent = '🎯 High Accuracy: ON';
+    } else {
+      btn.classList.remove('active');
+      btn.textContent = '⚡ Battery Saver: ON';
+    }
+    startHardwareGPS();
+  }
+
+  function initMap() {
+    if (map !== null) return;
+
+    map = L.map('map').setView([16.1809, 81.1303], 16);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    updateLiveMap(map);
+  }
+
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('tab-hidden'));
+    document.querySelectorAll('.side-link').forEach(el => el.classList.remove('active'));
+
+    const activeTab = document.getElementById('tab-' + tabId);
+    const activeNav = document.getElementById('nav-' + tabId);
+
+    if (activeTab) activeTab.classList.remove('tab-hidden');
+    if (activeNav) activeNav.classList.add('active');
+
+    if (tabId === 'potholes') {
+      fetchPotholesTable();
+    } else if (tabId === 'garbage') {
+      fetchGarbageTable();
+    } else if (tabId === 'map') {
+      if (!map) {
+        initMap();
+      }
+      setTimeout(() => {
+        if (map) {
+          map.invalidateSize();
+          updateLiveMap(map);
+        }
+      }, 200);
+    }
+  }
+
+  function togglePotholeStatus(btn, potholeId) {
+    const isCurrentlyFixed = btn.getAttribute('data-status') === 'fixed';
+    const nextStatus = !isCurrentlyFixed;
+
+    localFixedMap[potholeId] = nextStatus;
+    btn.setAttribute('data-status', nextStatus ? 'fixed' : 'not-fixed');
+    btn.className = `btn-status-toggle ${nextStatus ? 'status-fixed' : 'status-unfixed'}`;
+    btn.innerHTML = nextStatus ? '● Fixed' : '○ Not Fixed';
+
+    fetch('/api/potholes/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: potholeId, fixed: nextStatus })
+    }).catch(err => console.warn('Status transmission update error:', err));
+  }
+
+  function toggleGarbageStatus(btn, garbageId) {
+    const isCurrentlyCleared = btn.getAttribute('data-status') === 'cleared';
+    const nextStatus = !isCurrentlyCleared;
+
+    localClearedMap[garbageId] = nextStatus;
+    btn.setAttribute('data-status', nextStatus ? 'cleared' : 'uncleared');
+    btn.className = `btn-status-toggle ${nextStatus ? 'status-fixed' : 'status-unfixed'}`;
+    btn.innerHTML = nextStatus ? '● Cleared' : '○ Pending';
+
+    fetch('/api/garbage/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: garbageId, cleared: nextStatus })
+    }).catch(err => console.warn('Garbage status update error:', err));
+  }
+
+  function fetchPotholesTable() {
+    fetch('/api/potholes')
+      .then(res => res.json())
+      .then(data => {
+        const tbody = document.getElementById('potholes-table-body');
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-mid);" class="mono">No detections recorded yet.</td></tr>';
+          return;
+        }
+
+        data.forEach(item => {
+          const uniqueKey = `${item.bus_id}_${item.timestamp}_${item.lat}`;
+          if (!processedDetections.has(uniqueKey)) {
+            if (processedDetections.size > 0) {
+              triggerPotholeAlert(item.bus_id, item.confidence);
+            }
+            processedDetections.add(uniqueKey);
+          }
+        });
+
+        tbody.innerHTML = data.map(item => {
+          const isCritical = item.severity.toLowerCase().includes('critical') || item.severity.toLowerCase().includes('severe');
+          const badgeClass = isCritical ? 'badge-severe' : 'badge-moderate';
+          const label = isCritical ? 'Severe' : 'Moderate';
+          const rowId = item.id || `${item.bus_id}_${item.timestamp}`;
+
+          const isFixed = localFixedMap[rowId] !== undefined ? localFixedMap[rowId] : (item.fixed || false);
+          const statusClass = isFixed ? 'status-fixed' : 'status-unfixed';
+          const statusText = isFixed ? '● Fixed' : '○ Not Fixed';
+          const statusValue = isFixed ? 'fixed' : 'not-fixed';
+
+          return `
+            <tr>
+              <td class="mono" style="color:var(--text-mid); font-size:0.8rem;">${item.timestamp}</td>
+              <td class="mono" style="color:var(--cyan); font-weight:600;">${item.bus_id}</td>
+              <td><span class="badge-sev ${badgeClass}">${label}</span></td>
+              <td class="mono" style="color:var(--live);">${item.confidence}</td>
+              <td class="mono">${item.lat}° N, ${item.lng}° E</td>
+              <td>
+                <button class="btn-status-toggle ${statusClass}" 
+                        data-status="${statusValue}" 
+                        onclick="togglePotholeStatus(this, '${rowId}')">
+                  ${statusText}
+                </button>
+              </td>
+            </tr>
+          `;
+        }).reverse().join('');
+      })
+      .catch(err => console.error("Error fetching potholes:", err));
+  }
+
+  function fetchGarbageTable() {
+    fetch('/api/garbage')
+      .then(res => res.json())
+      .then(data => {
+        const tbody = document.getElementById('garbage-table-body');
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-mid);" class="mono">No garbage detections recorded yet.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.map(item => {
+          const isOverflow = (item.fill_level || '').toLowerCase().includes('overflow') || (item.severity || '').toLowerCase().includes('high');
+          const badgeClass = isOverflow ? 'badge-severe' : 'badge-moderate';
+          const label = item.fill_level || (isOverflow ? 'Overflow' : 'Moderate');
+          const rowId = item.id || `${item.bus_id}_${item.timestamp}`;
+
+          const isCleared = localClearedMap[rowId] !== undefined ? localClearedMap[rowId] : (item.cleared || false);
+          const statusClass = isCleared ? 'status-fixed' : 'status-unfixed';
+          const statusText = isCleared ? '● Cleared' : '○ Pending';
+          const statusValue = isCleared ? 'cleared' : 'uncleared';
+
+          return `
+            <tr>
+              <td class="mono" style="color:var(--text-mid); font-size:0.8rem;">${item.timestamp}</td>
+              <td class="mono" style="color:var(--cyan); font-weight:600;">${item.bus_id}</td>
+              <td><span class="badge-sev ${badgeClass}">${label}</span></td>
+              <td class="mono" style="color:var(--live);">${item.confidence}</td>
+              <td class="mono">${item.lat}° N, ${item.lng}° E</td>
+              <td>
+                <button class="btn-status-toggle ${statusClass}" 
+                        data-status="${statusValue}" 
+                        onclick="toggleGarbageStatus(this, '${rowId}')">
+                  ${statusText}
+                </button>
+              </td>
+            </tr>
+          `;
+        }).reverse().join('');
+      })
+      .catch(err => {
+        console.error("Error fetching garbage data:", err);
+        const tbody = document.getElementById('garbage-table-body');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-mid);" class="mono">No garbage detections recorded yet.</td></tr>';
+      });
+  }
+
+  function updateMetrics() {
+    fetch('/api/metrics')
+      .then(res => res.json())
+      .then(data => {
+        if (data.potholes !== undefined) {
+          document.getElementById('potholes-count').textContent = data.potholes;
+        }
+        if (data.garbage !== undefined) {
+          document.getElementById('garbage-count').textContent = data.garbage;
+        }
+      })
+      .catch(err => console.error("Metrics sync error:", err));
+  }
+
+  setInterval(() => {
+    fetchPotholesTable();
+    fetchGarbageTable();
+    updateMetrics();
+    if (map) updateLiveMap(map);
+  }, 4000);
+
+  window.addEventListener('DOMContentLoaded', () => {
+    startHardwareGPS();
+    fetchPotholesTable();
+    fetchGarbageTable();
+    updateMetrics();
+  });
+</script>
+</body>
+</html>

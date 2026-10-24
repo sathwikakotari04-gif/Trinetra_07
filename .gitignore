@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+.env
+best.pt
+yolov8n.pt
+copgb.pt
+garbage_best..pt
+weights/
+hazard_logs.csv
+pothole_logs.csv

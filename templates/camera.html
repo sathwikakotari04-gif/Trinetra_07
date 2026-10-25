@@ -1,22 +1,80 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Live Camera Stream</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Trinetra Live Camera</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #10151d; color: white; }
+        .camera-box { max-width: 800px; margin: auto; }
+        #camera { width: 100%; border-radius: 12px; background: #000; }
+    </style>
 </head>
-<body class="bg-dark text-white text-center">
+<body>
     <nav class="navbar navbar-dark bg-black px-4 mb-4">
-        <span class="navbar-brand mb-0 h1">Live Detection Stream</span>
-        <div>
-            <a href="/dashboard" class="btn btn-outline-light btn-sm me-2">Back to Dashboard</a>
-        </div>
+        <span class="navbar-brand">Trinetra | Live Detection</span>
+        <a href="/dashboard" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
     </nav>
-    <div class="container">
-        <h3 class="mb-3">Real-time YOLOv8 Hazard Feed</h3>
-        <div class="card bg-black border-secondary d-inline-block p-2">
-            <img src="/video_feed" class="img-fluid rounded" alt="Video Feed" width="640" height="480">
+
+    <main class="container text-center camera-box">
+        <h3 class="mb-3">Real-Time Camera</h3>
+
+        <div class="card bg-black border-secondary p-2">
+            <video id="camera" autoplay playsinline muted></video>
         </div>
-    </div>
+
+        <div class="my-3">
+            <button id="startBtn" class="btn btn-success">Start Camera</button>
+            <button id="stopBtn" class="btn btn-danger" disabled>Stop Camera</button>
+        </div>
+
+        <p id="status" class="text-warning">Camera not started.</p>
+        <p class="text-secondary small">
+            Allow camera permission when your browser asks.
+        </p>
+    </main>
+
+    <script>
+        const video = document.getElementById("camera");
+        const statusText = document.getElementById("status");
+        const startBtn = document.getElementById("startBtn");
+        const stopBtn = document.getElementById("stopBtn");
+
+        let cameraStream = null;
+
+        startBtn.addEventListener("click", async () => {
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false
+                });
+
+                video.srcObject = cameraStream;
+                statusText.textContent = "Camera is running. AI detection is not connected yet.";
+                statusText.className = "text-success";
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+            } catch (error) {
+                statusText.textContent =
+                    "Cannot access camera. Allow permission and try again: " + error.message;
+                statusText.className = "text-danger";
+            }
+        });
+
+        stopBtn.addEventListener("click", () => {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+
+            video.srcObject = null;
+            statusText.textContent = "Camera stopped.";
+            statusText.className = "text-warning";
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+    </script>
 </body>
 </html>

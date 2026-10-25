@@ -60,7 +60,7 @@ class FastWebcamStream:
         self.stopped = True
         self.stream.release()
 
-camera_stream = FastWebcamStream(src=0).start()
+camera_stream = None
 
 # 3. Model Initializations & Auto-Download
 POTHOLE_WEIGHT_FILE = os.path.join(BASE_DIR, "best.pt")
@@ -243,8 +243,7 @@ def camera_view():
 
 @app.route("/video_feed")
 def video_feed():
-    return Response(generate_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
-
+    return "Server camera is disabled. Use the browser camera.", 503
 # --- API Endpoints ---
 
 @app.route("/api/update_gps", methods=["POST"])
